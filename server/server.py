@@ -6,6 +6,9 @@
     GOOGLE_MAPS_BROWSER_KEY  Maps JavaScript API 用(HTML に注入。リファラ制限必須)
     GOOGLE_MAPS_API_KEY      上記2つを兼ねる場合の1本キー(省略可)
     MOCK_SOLAR=1             Solar API を呼ばず疑似データを返す(UI確認用)
+    SOLAR_DAILY_LIMIT        Solar API の1日上限(既定 100)。超えたら Google に送らず 429 を返す
+    GEOCODE_DAILY_LIMIT      Geocoding の1日上限(既定 100)
+    STATICMAP_DAILY_LIMIT    Static Maps の1日上限(既定 200)
     PORT                     既定 5194
 - /api/* はサーバーがキーを付けて Google に中継し、結果を data/cache に保存(同じ建物の再クリックは無料)
 """
@@ -28,6 +31,30 @@ SERVER_KEY  = os.environ.get('GOOGLE_MAPS_SERVER_KEY')  or os.environ.get('GOOGL
 BROWSER_KEY = os.environ.get('GOOGLE_MAPS_BROWSER_KEY') or os.environ.get('GOOGLE_MAPS_API_KEY', '')
 MOCK = os.environ.get('MOCK_SOLAR') == '1' or not SERVER_KEY
 PORT = int(os.environ.get('PORT', '5194'))
+LIMITS = {'solar': int(os.environ.get('SOLAR_DAILY_LIMIT', '100')), 'geocode': int(os.environ.get('GEOCODE_DAILY_LIMIT', '100')),
+          'staticmap': int(os.environ.get('STATICMAP_DAILY_LIMIT', '200'))}
+USAGE_FILE = os.path.join(CACHE, 'usage.json')
+import threading, datetime
+_usage_lock = threading.Lock()
+
+def usage_today():
+    day = datetime.date.today().isoformat()
+    try: u = json.load(open(USAGE_FILE))
+    except Exception: u = {}
+    if u.get('day') != day: u = {'day': day}
+    return u
+
+def usage_take(kind):
+    """1日上限の消費。上限内なら True(カウント+1)、超過なら False"""
+    with _usage_lock:
+        u = usage_today(); n = u.get(kind, 0)
+        if n >= LIMITS[kind]: return False
+        u[kind] = n + 1
+        os.makedirs(CACHE, exist_ok=True); json.dump(u, open(USAGE_FILE, 'w'))
+        return True
+
+def limit_error(kind):
+    return {'error': {'code': 429, 'message': f'本日の {kind} 呼び出し上限({LIMITS[kind]}回)に達しました。明日リセットされます(.env の *_DAILY_LIMIT で変更可)'}}
 
 MIME = {'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.json':'application/json',
         '.geojson':'application/geo+json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'}
@@ -94,7 +121,9 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, html.encode(), 'text/html; charset=utf-8')
             if p == '/api/status':
                 n = sum(len(f) for _, _, f in os.walk(CACHE)) if os.path.exists(CACHE) else 0
-                return self.send(200, {'serverKey': bool(SERVER_KEY), 'browserKey': bool(BROWSER_KEY), 'mock': MOCK, 'cached': n})
+                u = usage_today()
+                return self.send(200, {'serverKey': bool(SERVER_KEY), 'browserKey': bool(BROWSER_KEY), 'mock': MOCK, 'cached': n,
+                                       'today': {k: {'used': u.get(k, 0), 'limit': v} for k, v in LIMITS.items()}})
             if p == '/api/solar': return self.api_solar(q)
             if p == '/api/geocode': return self.api_geocode(q)
             if p == '/api/revgeocode': return self.api_revgeocode(q)
@@ -124,6 +153,7 @@ class H(BaseHTTPRequestHandler):
         key = f'{lat:.6f},{lng:.6f},{quality}'
         cp = cache_path('solar', key)
         if os.path.exists(cp): return self.send(200, open(cp,'rb').read())
+        if not usage_take('solar'): return self.send(429, limit_error('solar'))
         url = ('https://solar.googleapis.com/v1/buildingInsights:findClosest?' +
                urllib.parse.urlencode({'location.latitude': lat, 'location.longitude': lng, 'requiredQuality': quality, 'key': SERVER_KEY}))
         code, body, _ = fetch(url)
@@ -136,6 +166,7 @@ class H(BaseHTTPRequestHandler):
         if MOCK: return self.send(200, {'status':'MOCK','results':[]})
         cp = cache_path('geocode', addr)
         if os.path.exists(cp): return self.send(200, open(cp,'rb').read())
+        if not usage_take('geocode'): return self.send(429, limit_error('geocode'))
         url = 'https://maps.googleapis.com/maps/api/geocode/json?' + urllib.parse.urlencode({'address': addr, 'region':'jp', 'language':'ja', 'key': SERVER_KEY})
         code, body, _ = fetch(url)
         if code == 200: open(cp,'wb').write(body)
@@ -146,6 +177,7 @@ class H(BaseHTTPRequestHandler):
         if MOCK: return self.send(200, {'status':'MOCK','results':[{'formatted_address':'埼玉県戸田市(疑似住所)'}]})
         cp = cache_path('revgeocode', f'{lat:.6f},{lng:.6f}')
         if os.path.exists(cp): return self.send(200, open(cp,'rb').read())
+        if not usage_take('geocode'): return self.send(429, limit_error('geocode'))
         url = 'https://maps.googleapis.com/maps/api/geocode/json?' + urllib.parse.urlencode({'latlng': f'{lat},{lng}', 'language':'ja', 'key': SERVER_KEY})
         code, body, _ = fetch(url)
         if code == 200: open(cp,'wb').write(body)
@@ -160,6 +192,7 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, png, 'image/png')
         cp = cache_path('staticmap', urllib.parse.urlencode(pairs))
         if os.path.exists(cp): return self.send(200, open(cp,'rb').read(), 'image/png')
+        if not usage_take('staticmap'): return self.send(429, limit_error('staticmap'))
         url = 'https://maps.googleapis.com/maps/api/staticmap?' + urllib.parse.urlencode(pairs + [('key', SERVER_KEY)])
         code, body, ctype = fetch(url, binary=True)
         if code == 200: open(cp,'wb').write(body)

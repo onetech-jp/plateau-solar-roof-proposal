@@ -24,6 +24,10 @@ python3 server/server.py
 
 Solar/Geocoding/Static Maps の結果は `data/cache/` に保存され、同じ建物の再クリックは課金されない。
 
+さらにサーバーが日ごとの呼び出し回数を数え、上限(既定 Solar 100 / Geocoding 100 / Static Maps 200)を超えた日は Google に送らず 429 を返す
+(`.env` の `SOLAR_DAILY_LIMIT` 等で変更)。Google 側の割り当ては Solar API が「1分あたり」しか無いため、1日の蓋はこのサーバー側で担保する。
+`/api/status` で当日の使用量を確認できる。
+
 ## 構成
 
 ```
