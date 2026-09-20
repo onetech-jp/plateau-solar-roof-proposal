@@ -13,6 +13,8 @@
   let sel = { panels: null, battery: false, roofMaterial: 'スレート', wallGrade: 'シリコン', narrow: false, pitch: null };
   let measure = { on: false, poly: null, path: [], area: 0 };
   let lastAddress = null;
+  const MASK = new URLSearchParams(location.search).get('mask') === '1';   // 録画・公開用: 番地を隠す
+  function maskAddr(a) { if (!a) return a; if (!MASK) return a; const m = a.match(/^(.*?[都道府県].*?[市区町村].*?(?:\d+丁目|[０-９]+丁目)?)/); return (m ? m[1] : a.replace(/[\d０-９\-−－]+$/, '')) + '(以下省略)'; }
 
   // ---------- params ----------
   async function loadParams() {
@@ -114,7 +116,7 @@
 
   async function selectFeature(dataFeature) {
     const id = dataFeature.getProperty('id'); const f = featureById(id); if (!f) return;
-    selected = f; solar = null; sel.panels = null; lastAddress = f.properties.addr || null;
+    selected = f; solar = null; sel.panels = null; lastAddress = maskAddr(f.properties.addr || null);
     map.data.setStyle(styleFn); clearOverlays();
     renderPanel();
     const p = f.properties, c = f.center;
@@ -125,7 +127,7 @@
     if (selected !== f) return;
     if (solarRes.status === 'fulfilled') { solar = solarRes.value; drawSolarOverlays(); } else { solar = { error: solarRes.reason.message }; }
     if (addrRes.status === 'fulfilled' && addrRes.value && addrRes.value.results && addrRes.value.results[0]) {
-      lastAddress = addrRes.value.results[0].formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-\d{4}\s*/, '');
+      lastAddress = maskAddr(addrRes.value.results[0].formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-\d{4}\s*/, ''));
     }
     renderPanel();
   }
