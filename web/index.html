@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>屋根提案シート(戸田市デモ)</title>
+<link rel="stylesheet" href="/web/style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>屋根提案シート <span class="muted">戸田市 / PLATEAU × Solar API</span></h1>
+    <input type="text" id="addr" placeholder="住所で検索(例: 戸田市上戸田1-1)">
+    <button id="searchBtn">検索</button>
+    <button id="measureBtn" title="航空写真で敷地の角を順にクリック">敷地計測</button>
+    <button id="csvBtn" title="表示中の建物を営業リストCSVに出力">CSV</button>
+    <button id="settingsBtn">単価設定</button>
+    <span id="status" class="muted"></span>
+  </header>
+  <div id="main">
+    <div id="mapwrap">
+      <div id="map"></div>
+      <div id="hint"></div>
+      <div id="legend">
+        <div class="row">
+          <label><input type="radio" name="mode" value="quake" checked> 耐震基準の目安</label>
+          <label><input type="radio" name="mode" value="age"> 築年数</label>
+        </div>
+        <div id="legendItems"></div>
+        <div class="row">
+          <label>築<select id="minAge"><option value="0">指定なし</option><option value="15">15年以上</option><option value="30" selected>30年以上</option><option value="40">40年以上</option><option value="50">50年以上</option></select></label>
+          <label><input type="checkbox" id="hideUnknown"> 築年不明を隠す</label>
+        </div>
+        <div class="row" id="usageRow">
+          <label><input type="checkbox" class="usage" value="住宅" checked> 住宅</label>
+          <label><input type="checkbox" class="usage" value="店舗等併用住宅" checked> 店舗併用</label>
+          <label><input type="checkbox" class="usage" value="共同住宅"> 共同住宅</label>
+          <label><input type="checkbox" class="usage" value="__other"> その他</label>
+        </div>
+        <div class="muted" id="countInfo"></div>
+      </div>
+    </div>
+    <aside id="panel">
+      <div id="panelEmpty" class="muted">地図上の建物をクリックすると、築年数(PLATEAU)と屋根情報(Solar API)を表示し、太陽光と塗装の概算を出します。<br><br>ズーム15以上で建物が表示されます。</div>
+      <div id="panelBody" style="display:none"></div>
+    </aside>
+  </div>
+</div>
+
+<div id="settings" class="modal"><div class="box">
+  <h3 style="margin-top:0">単価・係数の設定</h3>
+  <p class="muted">JSON を編集して保存するとブラウザに記憶されます(業者ごとの単価表に差し替えてください)。</p>
+  <textarea id="paramsText"></textarea>
+  <div class="row" style="justify-content:flex-end">
+    <button id="paramsReset">既定値に戻す</button>
+    <button id="paramsClose">閉じる</button>
+    <button id="paramsSave" class="primary">保存</button>
+  </div>
+</div></div>
+
+<div id="sheetModal" class="modal"><div class="box">
+  <div id="sheetBar">
+    <span class="muted" style="margin-right:auto">印刷ダイアログで「PDFとして保存」を選ぶと1枚のPDFになります</span>
+    <button id="sheetClose">閉じる</button>
+    <button id="sheetPrint" class="primary">PDFに保存 / 印刷</button>
+  </div>
+  <div id="sheet"></div>
+</div></div>
+
+<div id="nokey" style="display:none">
+  <h2>ブラウザ用APIキーが設定されていません</h2>
+  <p>プロジェクト直下の <code>.env</code> に <code>GOOGLE_MAPS_BROWSER_KEY</code>(または <code>GOOGLE_MAPS_API_KEY</code>)を書いてサーバーを再起動してください。雛形は <code>.env.example</code> にあります。</p>
+  <p>キーは Google Cloud Console で「Maps JavaScript API」のみ許可し、HTTPリファラ制限に <code>localhost:5194/*</code> を入れてください。</p>
+</div>
+
+<script>window.BROWSER_KEY = "__BROWSER_KEY__"; window.MOCK = __MOCK__;</script>
+<script src="/web/estimate.js"></script>
+<script src="/web/app.js"></script>
+</body>
+</html>

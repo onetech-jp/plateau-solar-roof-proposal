@@ -1,0 +1,5 @@
+.env
+data/cache/
+data/*.geojson
+__pycache__/
+.DS_Store

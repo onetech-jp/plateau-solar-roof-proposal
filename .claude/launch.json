@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "yane-teian", "runtimeExecutable": "python3", "runtimeArgs": ["server/server.py"], "port": 5194 }
+  ]
+}

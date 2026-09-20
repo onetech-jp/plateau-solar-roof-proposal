@@ -1,0 +1,39 @@
+{
+  "company": "One Technology Japan 株式会社",
+  "solar": {
+    "panelWatt": 400,
+    "pricePerKw": 270000,
+    "subsidy": 100000,
+    "defaultPanelsCap": 16,
+    "dcToAc": 0.85,
+    "selfUseRate": 0.30,
+    "selfUseRateWithBattery": 0.60,
+    "batteryPrice": 1200000,
+    "buyPrice": 31,
+    "fitFirstYears": 4,
+    "fitFirstPrice": 24,
+    "fitAfterPrice": 8.3,
+    "degradePerYear": 0.005,
+    "horizonYears": 20
+  },
+  "paint": {
+    "floorHeight": 2.9,
+    "baseHeight": 0.6,
+    "scaffoldOffset": 8,
+    "scaffoldExtraHeight": 0.7,
+    "scaffoldUnit": 800,
+    "meshUnit": 150,
+    "scaffoldBase": 30000,
+    "roofScaffoldPitchDeg": 31,
+    "roofScaffoldCost": 70000,
+    "threeStoryExtraUnit": 150,
+    "narrowFactor": 1.3,
+    "openingRate": 0.18,
+    "washUnit": 250,
+    "accessoryUnitPerM": 1500,
+    "overheadRate": 0.12,
+    "roofAreaFallbackFactor": 1.15,
+    "roofUnit": { "スレート": 3000, "金属(ガルバリウム)": 3200, "セメント瓦": 3500, "陶器瓦(塗装不要)": 0 },
+    "wallUnit": { "シリコン": 2800, "ラジカル": 3200, "フッ素": 4200, "無機": 4800 }
+  }
+}
