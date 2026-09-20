@@ -160,7 +160,7 @@
       </table>`;
     // Solar
     html += `<h2>屋根情報(太陽光提案用) <span class="badge">Solar API</span>${solar && solar.imageryQuality === 'MOCK' ? '<span class="badge warn">疑似データ</span>' : ''}</h2>
-      <div class="muted">Includes solar data from Google. この区画の数値は太陽光の設置可能性の判断と提案にのみ使います(Google の利用規約)。</div>`;
+      <div class="muted">Source: Includes solar data from Google. この区画の数値は太陽光の設置可能性の判断と提案にのみ使います(Google の利用規約)。</div>`;
     if (!solar) html += `<div class="muted">Solar API 問い合わせ中…</div>`;
     else if (solar.error) html += `<div class="muted">取得できませんでした: ${solar.error}<br>(対象外エリアの可能性。塗装概算は建築面積から推定します)</div>`;
     else {
@@ -255,11 +255,11 @@
         <div><h2>建物概要</h2>${kv([['所在地', lastAddress || '-'], ['建築年', yearTxt], ['用途 / 構造', `${p.u || '-'} / ${p.str || '-'}`], ['階数 / 高さ', `${p.st != null ? p.st + '階' : '-'} / ${p.h != null ? p.h + ' m' : '-'}`], ['建築面積(輪郭)', `${num(p.fpa)} ㎡(${num(p.fpa / TSUBO)}坪)`], ['延床面積', p.tfa != null ? `${num(p.tfa)} ㎡` : null], ['外周長', `${num(p.per)} m`], ['敷地面積(概算・手計測)', measure.area > 0 ? `${num(measure.area)} ㎡(${num(measure.area / TSUBO)}坪)` : null]])}
         ${hasSolar ? `<h2>屋根の構成</h2><table><tr><th>面</th><th>方位</th><th>勾配</th><th>面積</th></tr>${S.segs.map(s => `<tr><td><b style="color:${SEG_COLORS[s.idx % 8]}">${s.label}</b></td><td>${s.dir}(${num(s.az, 0)}°)</td><td>${num(s.pitch, 0)}°</td><td class="num">${num(s.area)} ㎡</td></tr>`).join('')}<tr class="total"><td colspan="3">屋根実面積(勾配込み) / 投影面積</td><td class="num">${num(S.roofArea)} / ${num(S.groundArea)} ㎡</td></tr></table>` : ''}
         </div>
-        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, p.fpa < 180 ? 21 : 20, hasSolar)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU)${hasSolar ? ` / 色枠=屋根面(Solar API・画像品質 ${solar.imageryQuality})。Includes solar data from Google.` : ''}</div></div>
+        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, p.fpa < 180 ? 21 : 20, hasSolar)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU)${hasSolar ? ` / 色枠=屋根面(Solar API・画像品質 ${solar.imageryQuality})。Source: Includes solar data from Google.` : ''}</div></div>
       </div>`;
     const mmS = hasSolar ? solarMismatch(f, S) : null;
     if (mmS) html += `<div style="border:1px solid #d97706;background:#fffbeb;padding:3px 6px;margin:4px 0;font-size:10px">要確認: ${mmS}。屋根の数値は現地で確認してください。</div>`;
-    if (hasSolar) html += `<h2>太陽光発電 概算${S.battery ? '(蓄電池あり)' : ''}<span style="font-weight:400;font-size:9px;margin-left:8px">Includes solar data from Google</span></h2>
+    if (hasSolar) html += `<h2>太陽光発電 概算${S.battery ? '(蓄電池あり)' : ''}<span style="font-weight:400;font-size:9px;margin-left:8px">Source: Includes solar data from Google</span></h2>
       <div class="kpi"><div>設置容量<b>${num(S.kw, 2)} kW</b>${S.panels}枚</div><div>年間発電量<b>${num(S.kwhAc, 0)} kWh</b></div><div>初期費用(概算)<b>${yen(S.cost)}</b>補助金 ${yen(S.subsidy)} 控除後</div><div>投資回収<b>${S.payback ? `約${S.payback}年` : `${params.solar.horizonYears}年超`}</b>${params.solar.horizonYears}年累計 ${yen(S.total)}</div></div>
       <div class="muted" style="font-size:9px">自家消費率 ${Math.round(S.selfRate * 100)}%・買電 ${params.solar.buyPrice}円/kWh・売電 ${params.solar.fitFirstPrice}円(${params.solar.fitFirstYears}年間)→${params.solar.fitAfterPrice}円・年劣化 ${params.solar.degradePerYear * 100}%・年間日照 ${num(S.sunHours, 0)}時間・CO₂削減 約${num(S.co2kg, 0)}kg/年</div>`;
     html += `<h2>屋根・外壁塗装 概算(屋根材: ${Pn.roofMaterial} / 塗料: ${Pn.wallGrade} / 勾配: ${Pn.pitchLabel})</h2>
@@ -272,7 +272,7 @@
         <tr><td>付帯部(雨樋・破風・軒天)</td><td>外周${num(Pn.per)}m × ${yen(params.paint.accessoryUnitPerM)}</td><td class="num">${yen(Pn.acc)}</td></tr>
         <tr><td>諸経費</td><td>小計 × ${Math.round(params.paint.overheadRate * 100)}%</td><td class="num">${yen(Pn.overhead)}</td></tr>
         <tr class="total"><td colspan="2">合計(税抜・概算)</td><td class="num">${yen(Pn.total)}</td></tr></table>
-      <div class="note">本シートの面積・勾配・方位・発電量は航空写真と公開データ(国土交通省 PLATEAU、Google Solar API)からの推定値であり、現地調査により変動します。金額は当社標準単価による概算で、正式なお見積りは現地確認後に提示します。軒高は ${Pn.eaveSrc} から推定。塗装の数量は PLATEAU の建物輪郭から算出し、Solar API のデータは太陽光の項目にのみ使用しています。出典: Project PLATEAU(国土交通省) / Google Maps Platform(Includes solar data from Google)。</div>`;
+      <div class="note">本シートの面積・勾配・方位・発電量は航空写真と公開データ(国土交通省 PLATEAU、Google Solar API)からの推定値であり、現地調査により変動します。金額は当社標準単価による概算で、正式なお見積りは現地確認後に提示します。軒高は ${Pn.eaveSrc} から推定。塗装の数量は PLATEAU の建物輪郭から算出し、Solar API のデータは太陽光の項目にのみ使用しています。出典: Project PLATEAU(国土交通省) / Google Maps Platform(Source: Includes solar data from Google)。</div>`;
     $('sheet').innerHTML = html; $('sheetModal').classList.add('open');
   }
   $('sheetClose').onclick = () => $('sheetModal').classList.remove('open');

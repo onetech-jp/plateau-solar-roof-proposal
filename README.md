@@ -67,7 +67,7 @@ Google Maps Platform サービス固有規約 20 条(Solar API)に従う。
 - **20.1 許可用途**: Solar API のデータは「エネルギーシステム(太陽光等)の設置可能性の判断・設計・提案・(オプトインした相手への)営業資料」にのみ使える。
   → **塗装・足場の概算には Solar API のデータを一切使わない**。塗装の屋根面積は PLATEAU の建築面積 × 営業が選ぶ勾配係数で算出(`computePaint` は solar 引数を無視)。
 - **20.2 キャッシュ**: Building Insights のキャッシュは最大30日。サーバーは30日を超えたキャッシュを起動時と参照時に削除する。提案書(固定媒体)に取り込んだ数値は削除義務の対象外。
-- **帰属表示**: Solar API のデータを表示する箇所(画面・提案シート)に「Includes solar data from Google」を表示。Solar の結果を地図に描くときは Google マップ上に限る(本アプリは Google Maps を使用)。
+- **帰属表示**: Solar API のデータを表示する箇所(画面・提案シート)に「Source: Includes solar data from Google」を表示。Solar の結果を地図に描くときは Google マップ上に限る(本アプリは Google Maps を使用)。
 - 太陽光の営業リスト作成に Solar API を使う場合は「地域の設置可能性の判断」の範囲に留め、オプトインのない相手への営業資料には使わない。
 
 ## 制約
