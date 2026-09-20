@@ -116,6 +116,8 @@
 
   async function selectFeature(dataFeature) {
     const id = dataFeature.getProperty('id'); const f = featureById(id); if (!f) return;
+    // 別の建物を選んだら、前の建物で計測した敷地は捨てる(提案シートに別敷地の面積が載るのを防ぐ)
+    if (selected && selected !== f && measure.poly) { measure.poly.setMap(null); measure.poly = null; measure.area = 0; }
     selected = f; solar = null; sel.panels = null; lastAddress = maskAddr(f.properties.addr || null);
     map.data.setStyle(styleFn); clearOverlays();
     renderPanel();
