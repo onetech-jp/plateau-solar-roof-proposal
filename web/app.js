@@ -99,6 +99,16 @@
     renderLegend(); loadBuildings();
   };
 
+  // Solar API が返した建物が PLATEAU の輪郭と一致しているかの簡易判定
+  function solarMismatch(f, S) {
+    if (!S || !S.groundArea) return null;
+    const p = f.properties; const ratio = S.groundArea / p.fpa;
+    const c = solar.center; const inside = c ? pointInRing({ lat: c.latitude, lng: c.longitude }, f.geometry.coordinates[0]) : true;
+    if (!inside) return 'Solar API の建物中心が輪郭の外(隣接建物を拾った可能性)';
+    if (ratio < 0.6) return `Solar API の投影面積が輪郭の${Math.round(ratio * 100)}%(建物の一部、または別棟の可能性)`;
+    if (ratio > 1.6) return `Solar API の投影面積が輪郭の${Math.round(ratio * 100)}%(複数棟を含む可能性)`;
+    return null;
+  }
   function featureById(id) { return feats.find(f => f.properties.id === id); }
   function clearOverlays() { overlays.forEach(o => o.setMap(null)); overlays = []; }
 
@@ -155,7 +165,8 @@
     else {
       const S = Estimate.computeSolar(solar, sel, params.solar);
       const d = solar.imageryDate ? `${solar.imageryDate.year}/${solar.imageryDate.month}` : '';
-      html += `<div class="muted">画像品質 ${solar.imageryQuality} ${d}</div>
+      const mm = solarMismatch(selected, S);
+      html += `<div class="muted">画像品質 ${solar.imageryQuality} ${d}</div>${mm ? `<div class="badge warn" style="margin:4px 0;white-space:normal">要確認: ${mm}</div>` : ''}
         <table class="kv">
           <tr><td>屋根実面積(勾配込み)</td><td>${num(S.roofArea)} ㎡</td></tr>
           <tr><td>屋根投影面積</td><td>${num(S.groundArea)} ㎡</td></tr>
@@ -240,8 +251,10 @@
         <div><h2>建物概要</h2>${kv([['所在地', lastAddress || '-'], ['建築年', yearTxt], ['用途 / 構造', `${p.u || '-'} / ${p.str || '-'}`], ['階数 / 高さ', `${p.st != null ? p.st + '階' : '-'} / ${p.h != null ? p.h + ' m' : '-'}`], ['建築面積(輪郭)', `${num(p.fpa)} ㎡(${num(p.fpa / TSUBO)}坪)`], ['延床面積', p.tfa != null ? `${num(p.tfa)} ㎡` : null], ['外周長', `${num(p.per)} m`], ['敷地面積(概算・手計測)', measure.area > 0 ? `${num(measure.area)} ㎡(${num(measure.area / TSUBO)}坪)` : null]])}
         ${hasSolar ? `<h2>屋根の構成</h2><table><tr><th>面</th><th>方位</th><th>勾配</th><th>面積</th></tr>${S.segs.map(s => `<tr><td><b style="color:${SEG_COLORS[s.idx % 8]}">${s.label}</b></td><td>${s.dir}(${num(s.az, 0)}°)</td><td>${num(s.pitch, 0)}°</td><td class="num">${num(s.area)} ㎡</td></tr>`).join('')}<tr class="total"><td colspan="3">屋根実面積(勾配込み) / 投影面積</td><td class="num">${num(S.roofArea)} / ${num(S.groundArea)} ㎡</td></tr></table>` : ''}
         </div>
-        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, 20, true)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU) / 色枠=屋根面(Solar API) ${hasSolar ? `画像品質 ${solar.imageryQuality}` : ''}</div></div>
+        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, p.fpa < 180 ? 21 : 20, true)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU) / 色枠=屋根面(Solar API) ${hasSolar ? `画像品質 ${solar.imageryQuality}` : ''}</div></div>
       </div>`;
+    const mmS = hasSolar ? solarMismatch(f, S) : null;
+    if (mmS) html += `<div style="border:1px solid #d97706;background:#fffbeb;padding:3px 6px;margin:4px 0;font-size:10px">要確認: ${mmS}。屋根の数値は現地で確認してください。</div>`;
     if (hasSolar) html += `<h2>太陽光発電 概算${S.battery ? '(蓄電池あり)' : ''}</h2>
       <div class="kpi"><div>設置容量<b>${num(S.kw, 2)} kW</b>${S.panels}枚</div><div>年間発電量<b>${num(S.kwhAc, 0)} kWh</b></div><div>初期費用(概算)<b>${yen(S.cost)}</b>補助金 ${yen(S.subsidy)} 控除後</div><div>投資回収<b>${S.payback ? `約${S.payback}年` : `${params.solar.horizonYears}年超`}</b>${params.solar.horizonYears}年累計 ${yen(S.total)}</div></div>
       <div class="muted" style="font-size:9px">自家消費率 ${Math.round(S.selfRate * 100)}%・買電 ${params.solar.buyPrice}円/kWh・売電 ${params.solar.fitFirstPrice}円(${params.solar.fitFirstYears}年間)→${params.solar.fitAfterPrice}円・年劣化 ${params.solar.degradePerYear * 100}%・年間日照 ${num(S.sunHours, 0)}時間・CO₂削減 約${num(S.co2kg, 0)}kg/年</div>`;
