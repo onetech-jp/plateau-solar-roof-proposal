@@ -34,6 +34,16 @@ PORT = int(os.environ.get('PORT', '5194'))
 LIMITS = {'solar': int(os.environ.get('SOLAR_DAILY_LIMIT', '100')), 'geocode': int(os.environ.get('GEOCODE_DAILY_LIMIT', '100')),
           'staticmap': int(os.environ.get('STATICMAP_DAILY_LIMIT', '200'))}
 USAGE_FILE = os.path.join(CACHE, 'usage.json')
+SOLAR_CACHE_DAYS = 30
+
+def purge_solar_cache():
+    """起動時に30日を超えた Solar キャッシュを削除(規約20.2)"""
+    import time
+    d = os.path.join(CACHE, 'solar')
+    if not os.path.isdir(d): return
+    for f in os.listdir(d):
+        fp = os.path.join(d, f)
+        if time.time() - os.path.getmtime(fp) > SOLAR_CACHE_DAYS * 86400: os.remove(fp)
 import threading, datetime
 _usage_lock = threading.Lock()
 
@@ -152,7 +162,11 @@ class H(BaseHTTPRequestHandler):
         if MOCK: return self.send(200, mock_solar(lat, lng, fpa))
         key = f'{lat:.6f},{lng:.6f},{quality}'
         cp = cache_path('solar', key)
-        if os.path.exists(cp): return self.send(200, open(cp,'rb').read())
+        # Solar API 規約(20.2): Building Insights のキャッシュは最大30日。超えたものは削除して取り直す
+        if os.path.exists(cp):
+            import time
+            if time.time() - os.path.getmtime(cp) < SOLAR_CACHE_DAYS * 86400: return self.send(200, open(cp,'rb').read())
+            os.remove(cp)
         if not usage_take('solar'): return self.send(429, limit_error('solar'))
         url = ('https://solar.googleapis.com/v1/buildingInsights:findClosest?' +
                urllib.parse.urlencode({'location.latitude': lat, 'location.longitude': lng, 'requiredQuality': quality, 'key': SERVER_KEY}))
@@ -199,7 +213,7 @@ class H(BaseHTTPRequestHandler):
         return self.send(code, body, ctype or 'image/png')
 
 if __name__ == '__main__':
-    os.makedirs(CACHE, exist_ok=True)
+    os.makedirs(CACHE, exist_ok=True); purge_solar_cache()
     print(f'serverKey={"set" if SERVER_KEY else "MISSING"} browserKey={"set" if BROWSER_KEY else "MISSING"} mock={MOCK}', file=sys.stderr)
     print(f'http://localhost:{PORT}/', file=sys.stderr)
     ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()

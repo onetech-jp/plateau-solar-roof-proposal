@@ -29,7 +29,8 @@
     }
     const segs = (sp.roofSegmentStats || []).map((s, i) => ({
       idx: i, label: String.fromCharCode(65 + i), area: s.stats.areaMeters2, ground: s.stats.groundAreaMeters2,
-      pitch: s.pitchDegrees || 0, az: s.azimuthDegrees || 0, dir: dirName(s.azimuthDegrees || 0), sun: sunFactor(s.azimuthDegrees || 0),
+      pitch: s.pitchDegrees || 0, az: s.azimuthDegrees || 0,
+      dir: (s.pitchDegrees || 0) < 5 ? '陸屋根(平)' : dirName(s.azimuthDegrees || 0), sun: (s.pitchDegrees || 0) < 5 ? 1.0 : sunFactor(s.azimuthDegrees || 0),
       sunHours: s.stats.sunshineQuantiles ? s.stats.sunshineQuantiles[5] : null, bbox: s.boundingBox, center: s.center,
     }));
     const southArea = segs.filter(s => s.sun >= 0.85).reduce((a, s) => a + s.area, 0);
@@ -43,10 +44,12 @@
     };
   }
 
-  function computePaint(props, solar, sel, P) {
+  // 塗装概算は Solar API のデータを使わない(Solar API はエネルギー設備用途に限定されるため)。
+  // 屋根面積 = PLATEAU の建築面積 × 勾配係数(営業が選ぶ)。
+  function computePaint(props, _unused, sel, P) {
     const per = props.per || 0, fpa = props.fpa || 0, st = props.st || null, h = props.h || null;
-    const sp = solar && solar.solarPotential;
-    const pitch = sp && sp.roofSegmentStats && sp.roofSegmentStats.length ? Math.max(...sp.roofSegmentStats.map(x => x.pitchDegrees || 0)) : 25;
+    const pitchDeg = P.pitchOptions && sel.pitch in P.pitchOptions ? P.pitchOptions[sel.pitch] : 22;
+    const pitch = pitchDeg;
     const notes = [];
     let eave, eaveSrc;
     if (st) { eave = st * P.floorHeight + P.baseHeight; eaveSrc = `地上${st}階 × ${P.floorHeight}m + 基礎${P.baseHeight}m`; }
@@ -60,9 +63,9 @@
     if (sel.narrow) { scaffold *= P.narrowFactor; notes.push('狭小地(隣地離れ60cm未満)割増'); }
     const roofScaffold = pitch >= P.roofScaffoldPitchDeg ? P.roofScaffoldCost : 0;
     if (roofScaffold) notes.push(`勾配${pitch.toFixed(0)}°(6寸以上)のため屋根足場を加算`);
-    let roofArea, roofSrc;
-    if (sp && sp.wholeRoofStats) { roofArea = sp.wholeRoofStats.areaMeters2; roofSrc = 'Solar API 実面積(勾配込み)'; }
-    else { roofArea = fpa * P.roofAreaFallbackFactor; roofSrc = `建築面積 × ${P.roofAreaFallbackFactor}(推定)`; }
+    const slopeFactor = 1 / Math.cos(pitch * Math.PI / 180);
+    const roofArea = fpa * slopeFactor;
+    const roofSrc = `建築面積${fpa.toFixed(1)}㎡ × 勾配係数${slopeFactor.toFixed(3)}(${sel.pitch || '既定'})`;
     const roofUnit = sel.roofMaterial in P.roofUnit ? P.roofUnit[sel.roofMaterial] : 3000;
     const roof = roofArea * roofUnit;
     const wallArea = per * eave * (1 - P.openingRate);
@@ -75,7 +78,7 @@
     return {
       per, fpa, stories, eave, eaveSrc, pitch, scPer, scH, scArea, scaffoldUnit: unit, scaffold, roofScaffold,
       roofArea, roofSrc, roofUnit, roof, wallArea, wallUnit, wall, wash, acc, sub, overhead, total: sub + overhead, notes,
-      roofMaterial: sel.roofMaterial, wallGrade: sel.wallGrade,
+      roofMaterial: sel.roofMaterial, wallGrade: sel.wallGrade, pitchLabel: sel.pitch,
     };
   }
 

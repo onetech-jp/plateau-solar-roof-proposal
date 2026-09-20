@@ -10,7 +10,7 @@
 
   let params = null, defaultParams = null;
   let map, feats = [], visibleIds = new Set(), selected = null, solar = null, overlays = [], searchMarker = null;
-  let sel = { panels: null, battery: false, roofMaterial: 'スレート', wallGrade: 'シリコン', narrow: false };
+  let sel = { panels: null, battery: false, roofMaterial: 'スレート', wallGrade: 'シリコン', narrow: false, pitch: null };
   let measure = { on: false, poly: null, path: [], area: 0 };
   let lastAddress = null;
 
@@ -19,7 +19,7 @@
     defaultParams = await fetch('/web/params.json').then(r => r.json());
     try { const s = localStorage.getItem('yane.params'); params = s ? JSON.parse(s) : JSON.parse(JSON.stringify(defaultParams)); }
     catch (_) { params = JSON.parse(JSON.stringify(defaultParams)); }
-    sel.roofMaterial = Object.keys(params.paint.roofUnit)[0]; sel.wallGrade = Object.keys(params.paint.wallUnit)[0];
+    sel.roofMaterial = Object.keys(params.paint.roofUnit)[0]; sel.wallGrade = Object.keys(params.paint.wallUnit)[0]; sel.pitch = params.paint.defaultPitch;
   }
   $('settingsBtn').onclick = () => { $('paramsText').value = JSON.stringify(params, null, 2); $('settings').classList.add('open'); };
   $('paramsClose').onclick = () => $('settings').classList.remove('open');
@@ -159,7 +159,8 @@
         <tr><td>外周長</td><td>${num(p.per)} m</td></tr>
       </table>`;
     // Solar
-    html += `<h2>屋根情報 <span class="badge">Solar API</span>${solar && solar.imageryQuality === 'MOCK' ? '<span class="badge warn">疑似データ</span>' : ''}</h2>`;
+    html += `<h2>屋根情報(太陽光提案用) <span class="badge">Solar API</span>${solar && solar.imageryQuality === 'MOCK' ? '<span class="badge warn">疑似データ</span>' : ''}</h2>
+      <div class="muted">Includes solar data from Google. この区画の数値は太陽光の設置可能性の判断と提案にのみ使います(Google の利用規約)。</div>`;
     if (!solar) html += `<div class="muted">Solar API 問い合わせ中…</div>`;
     else if (solar.error) html += `<div class="muted">取得できませんでした: ${solar.error}<br>(対象外エリアの可能性。塗装概算は建築面積から推定します)</div>`;
     else {
@@ -194,8 +195,10 @@
         </table>`;
     }
     // 塗装概算
-    const Pn = Estimate.computePaint(p, solar && !solar.error ? solar : null, sel, params.paint);
-    html += `<h2>屋根・外壁塗装 概算</h2>
+    const Pn = Estimate.computePaint(p, null, sel, params.paint);
+    html += `<h2>屋根・外壁塗装 概算 <span class="badge">PLATEAU</span></h2>
+      <div class="muted">屋根面積は PLATEAU の建築面積 × 勾配係数で推定(Solar API のデータは使いません)。</div>
+      <div class="row"><label>勾配 <select id="pitch">${Object.keys(params.paint.pitchOptions).map(k => `<option ${k === sel.pitch ? 'selected' : ''}>${k}</option>`).join('')}</select></label></div>
       <div class="row"><label>屋根材 <select id="roofMaterial">${Object.keys(params.paint.roofUnit).map(k => `<option ${k === sel.roofMaterial ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
       <label>塗料 <select id="wallGrade">${Object.keys(params.paint.wallUnit).map(k => `<option ${k === sel.wallGrade ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
       <label><input type="checkbox" id="narrow" ${sel.narrow ? 'checked' : ''}> 狭小地</label></div>
@@ -223,6 +226,7 @@
     on('roofMaterial', 'change', e => { sel.roofMaterial = e.target.value; renderPanel(); });
     on('wallGrade', 'change', e => { sel.wallGrade = e.target.value; renderPanel(); });
     on('narrow', 'change', e => { sel.narrow = e.target.checked; renderPanel(); });
+    on('pitch', 'change', e => { sel.pitch = e.target.value; renderPanel(); });
     on('sheetBtn', 'click', openSheet);
     on('zoomBtn', 'click', () => { map.setMapTypeId('hybrid'); map.setZoom(20); map.panTo(selected.center); });
   }
@@ -242,7 +246,7 @@
   function openSheet() {
     const f = selected, p = f.properties; const hasSolar = solar && !solar.error;
     const S = hasSolar ? Estimate.computeSolar(solar, sel, params.solar) : null;
-    const Pn = Estimate.computePaint(p, hasSolar ? solar : null, sel, params.paint);
+    const Pn = Estimate.computePaint(p, null, sel, params.paint);
     const today = new Date().toLocaleDateString('ja-JP');
     const yearTxt = p.y ? `${p.y}年(築${NOW - p.y}年)` : '不明';
     const kv = rows => `<table>${rows.filter(r => r[1] != null && r[1] !== '-').map(r => `<tr><th style="width:40%">${r[0]}</th><td class="${r[2] || ''}">${r[1]}</td></tr>`).join('')}</table>`;
@@ -251,24 +255,24 @@
         <div><h2>建物概要</h2>${kv([['所在地', lastAddress || '-'], ['建築年', yearTxt], ['用途 / 構造', `${p.u || '-'} / ${p.str || '-'}`], ['階数 / 高さ', `${p.st != null ? p.st + '階' : '-'} / ${p.h != null ? p.h + ' m' : '-'}`], ['建築面積(輪郭)', `${num(p.fpa)} ㎡(${num(p.fpa / TSUBO)}坪)`], ['延床面積', p.tfa != null ? `${num(p.tfa)} ㎡` : null], ['外周長', `${num(p.per)} m`], ['敷地面積(概算・手計測)', measure.area > 0 ? `${num(measure.area)} ㎡(${num(measure.area / TSUBO)}坪)` : null]])}
         ${hasSolar ? `<h2>屋根の構成</h2><table><tr><th>面</th><th>方位</th><th>勾配</th><th>面積</th></tr>${S.segs.map(s => `<tr><td><b style="color:${SEG_COLORS[s.idx % 8]}">${s.label}</b></td><td>${s.dir}(${num(s.az, 0)}°)</td><td>${num(s.pitch, 0)}°</td><td class="num">${num(s.area)} ㎡</td></tr>`).join('')}<tr class="total"><td colspan="3">屋根実面積(勾配込み) / 投影面積</td><td class="num">${num(S.roofArea)} / ${num(S.groundArea)} ㎡</td></tr></table>` : ''}
         </div>
-        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, p.fpa < 180 ? 21 : 20, true)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU) / 色枠=屋根面(Solar API) ${hasSolar ? `画像品質 ${solar.imageryQuality}` : ''}</div></div>
+        <div><h2>航空写真・屋根図</h2><img src="${staticMapUrl(f, p.fpa < 180 ? 21 : 20, hasSolar)}" alt="航空写真"><div class="muted" style="font-size:9px">橙=建物輪郭(PLATEAU)${hasSolar ? ` / 色枠=屋根面(Solar API・画像品質 ${solar.imageryQuality})。Includes solar data from Google.` : ''}</div></div>
       </div>`;
     const mmS = hasSolar ? solarMismatch(f, S) : null;
     if (mmS) html += `<div style="border:1px solid #d97706;background:#fffbeb;padding:3px 6px;margin:4px 0;font-size:10px">要確認: ${mmS}。屋根の数値は現地で確認してください。</div>`;
-    if (hasSolar) html += `<h2>太陽光発電 概算${S.battery ? '(蓄電池あり)' : ''}</h2>
+    if (hasSolar) html += `<h2>太陽光発電 概算${S.battery ? '(蓄電池あり)' : ''}<span style="font-weight:400;font-size:9px;margin-left:8px">Includes solar data from Google</span></h2>
       <div class="kpi"><div>設置容量<b>${num(S.kw, 2)} kW</b>${S.panels}枚</div><div>年間発電量<b>${num(S.kwhAc, 0)} kWh</b></div><div>初期費用(概算)<b>${yen(S.cost)}</b>補助金 ${yen(S.subsidy)} 控除後</div><div>投資回収<b>${S.payback ? `約${S.payback}年` : `${params.solar.horizonYears}年超`}</b>${params.solar.horizonYears}年累計 ${yen(S.total)}</div></div>
       <div class="muted" style="font-size:9px">自家消費率 ${Math.round(S.selfRate * 100)}%・買電 ${params.solar.buyPrice}円/kWh・売電 ${params.solar.fitFirstPrice}円(${params.solar.fitFirstYears}年間)→${params.solar.fitAfterPrice}円・年劣化 ${params.solar.degradePerYear * 100}%・年間日照 ${num(S.sunHours, 0)}時間・CO₂削減 約${num(S.co2kg, 0)}kg/年</div>`;
-    html += `<h2>屋根・外壁塗装 概算(屋根材: ${Pn.roofMaterial} / 塗料: ${Pn.wallGrade})</h2>
+    html += `<h2>屋根・外壁塗装 概算(屋根材: ${Pn.roofMaterial} / 塗料: ${Pn.wallGrade} / 勾配: ${Pn.pitchLabel})</h2>
       <table><tr><th>項目</th><th>数量・根拠</th><th style="text-align:right">金額</th></tr>
         <tr><td>足場(組立解体・メッシュシート・基本料)</td><td>(外周${num(Pn.per)}m+${params.paint.scaffoldOffset}m)×高さ${num(Pn.scH)}m = ${num(Pn.scArea, 0)}㎡ × ${yen(Pn.scaffoldUnit + params.paint.meshUnit)}${Pn.notes.length ? ' / ' + Pn.notes.join('・') : ''}</td><td class="num">${yen(Pn.scaffold)}</td></tr>
         ${Pn.roofScaffold ? `<tr><td>屋根足場</td><td>勾配${num(Pn.pitch, 0)}°</td><td class="num">${yen(Pn.roofScaffold)}</td></tr>` : ''}
-        <tr><td>屋根塗装</td><td>${num(Pn.roofArea, 0)}㎡ × ${yen(Pn.roofUnit)}(${Pn.roofSrc})</td><td class="num">${yen(Pn.roof)}</td></tr>
+        <tr><td>屋根塗装</td><td>${num(Pn.roofArea, 0)}㎡ × ${yen(Pn.roofUnit)}(${Pn.roofSrc}・PLATEAU)</td><td class="num">${yen(Pn.roof)}</td></tr>
         <tr><td>外壁塗装</td><td>外周${num(Pn.per)}m × 軒高${num(Pn.eave)}m × (1−開口${Math.round(params.paint.openingRate * 100)}%) = ${num(Pn.wallArea, 0)}㎡ × ${yen(Pn.wallUnit)}</td><td class="num">${yen(Pn.wall)}</td></tr>
         <tr><td>高圧洗浄</td><td>${num(Pn.roofArea + Pn.wallArea, 0)}㎡ × ${yen(params.paint.washUnit)}</td><td class="num">${yen(Pn.wash)}</td></tr>
         <tr><td>付帯部(雨樋・破風・軒天)</td><td>外周${num(Pn.per)}m × ${yen(params.paint.accessoryUnitPerM)}</td><td class="num">${yen(Pn.acc)}</td></tr>
         <tr><td>諸経費</td><td>小計 × ${Math.round(params.paint.overheadRate * 100)}%</td><td class="num">${yen(Pn.overhead)}</td></tr>
         <tr class="total"><td colspan="2">合計(税抜・概算)</td><td class="num">${yen(Pn.total)}</td></tr></table>
-      <div class="note">本シートの面積・勾配・方位・発電量は航空写真と公開データ(国土交通省 PLATEAU、Google Solar API)からの推定値であり、現地調査により変動します。金額は当社標準単価による概算で、正式なお見積りは現地確認後に提示します。軒高は ${Pn.eaveSrc} から推定。出典: Project PLATEAU(国土交通省) / Google Maps Platform。</div>`;
+      <div class="note">本シートの面積・勾配・方位・発電量は航空写真と公開データ(国土交通省 PLATEAU、Google Solar API)からの推定値であり、現地調査により変動します。金額は当社標準単価による概算で、正式なお見積りは現地確認後に提示します。軒高は ${Pn.eaveSrc} から推定。塗装の数量は PLATEAU の建物輪郭から算出し、Solar API のデータは太陽光の項目にのみ使用しています。出典: Project PLATEAU(国土交通省) / Google Maps Platform(Includes solar data from Google)。</div>`;
     $('sheet').innerHTML = html; $('sheetModal').classList.add('open');
   }
   $('sheetClose').onclick = () => $('sheetModal').classList.remove('open');
