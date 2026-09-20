@@ -93,7 +93,7 @@
 
   // ---------- map ----------
   window.initMap = function () {
-    map = new google.maps.Map($('map'), { center: TODA, zoom: 16, mapTypeId: 'roadmap', mapTypeControl: true, streetViewControl: true, fullscreenControl: false, gestureHandling: 'greedy', tilt: 0 });
+    map = new google.maps.Map($('map'), { center: TODA, zoom: 16, mapTypeId: 'roadmap', mapTypeControl: true, streetViewControl: true, fullscreenControl: false, gestureHandling: 'greedy', tilt: 0, clickableIcons: false });
     map.data.setStyle(styleFn);
     map.addListener('idle', refreshVisible);
     map.data.addListener('click', e => { if (measure.on) return; selectFeature(e.feature); });
@@ -285,8 +285,13 @@
     if (measure.on) { map.setMapTypeId('hybrid'); if (map.getZoom() < 19) map.setZoom(20); $('hint').textContent = '敷地の角を順にクリック(もう一度「敷地計測」で終了・ダブルクリックでやり直し)'; $('hint').style.display = 'block'; }
     else { $('hint').style.display = 'none'; } };
   function addMeasurePoint(ll) {
-    if (!measure.poly) { measure.poly = new google.maps.Polygon({ map, paths: [], strokeColor: '#00e676', strokeWeight: 2, fillColor: '#00e676', fillOpacity: .2, editable: true, clickable: false });
-      measure.poly.getPath().addListener('set_at', updateMeasure); measure.poly.getPath().addListener('insert_at', updateMeasure); }
+    // 頂点ゼロの Polygon は getPath() が undefined になるため、最初の点で作る
+    if (!measure.poly) {
+      measure.poly = new google.maps.Polygon({ map, paths: [ll], strokeColor: '#00e676', strokeWeight: 2, fillColor: '#00e676', fillOpacity: .2, editable: true, clickable: false });
+      const path = measure.poly.getPath();
+      ['set_at', 'insert_at', 'remove_at'].forEach(ev => path.addListener(ev, updateMeasure));
+      updateMeasure(); return;
+    }
     measure.poly.getPath().push(ll); updateMeasure();
   }
   function updateMeasure() { const path = measure.poly.getPath(); measure.area = path.getLength() >= 3 ? google.maps.geometry.spherical.computeArea(path) : 0;
